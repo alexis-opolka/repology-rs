@@ -46,6 +46,10 @@ pub struct QueryParams {
     #[serde(default)]
     #[serde(deserialize_with = "crate::query::deserialize_seq")]
     pub exclude_sources: HashSet<SourceType>,
+
+    #[serde(default)]
+    #[serde(deserialize_with = "crate::query::deserialize_bool_flag")]
+    pub exclude_older: bool,
 }
 
 #[derive(FromRow)]
@@ -126,11 +130,18 @@ pub async fn badge_vertical_allrepos(
         .filter(|repository_data| !is_repository_filtered(repository_data, &query))
     {
         if let Some(&package) = package_per_repository.get(&repository_data.name) {
+
             let extra_status = query
                 .min_version
                 .as_ref()
                 .is_some_and(|min_version| package_version(package) < min_version)
                 .then_some(SpecialVersionStatus::LowerThanUserGivenThreshold);
+            let exclude_older = query.exclude_older;
+
+            if extra_status.clone().unwrap() == SpecialVersionStatus::LowerThanUserGivenThreshold && exclude_older == true {
+                // If we want to exclude older version from appearing on the badge
+                continue
+            }
 
             let color = badge_color_for_package_status(package.status, extra_status);
 
